@@ -45,9 +45,7 @@ def glad(answers, n_choices, max_iter=50, m_steps=25, lr=0.01,
     mu_a, sd_a = prior_alpha
     mu_b, sd_b = prior_logbeta
 
-    # Candidate labels per question = the distinct answers actually observed.
-    # Any label nobody chose has vanishing posterior and can never win, so we
-    # never need to enumerate the full (possibly 5**k) theoretical label space.
+    # the distinct answers actually observed.
     candidates = [np.unique(answers[j]) for j in range(n_q)]
 
     # init
@@ -61,28 +59,28 @@ def glad(answers, n_choices, max_iter=50, m_steps=25, lr=0.01,
     for _ in range(max_iter):
         beta = np.exp(b)
 
-        # ---------- E-step ----------
+        # E-step 
         x = alpha[None, :] * beta[:, None]                 # (n_q, n_w) = a_i b_j
         s = _sigmoid(x)
-        log_correct = np.log(np.clip(s, 1e-12, 1.0))
+        log_correct = np.log(np.clip(s, 1e-12, 1.0)) #probablity of correctness
         log_wrong = (np.log(np.clip(1.0 - s, 1e-12, 1.0))
                      - np.log(np.maximum(K[:, None] - 1, 1)))   # depends on K_j
 
         ll = 0.0
-        for j in range(n_q):
+        for j in range(n_q): # loop on questions
             cand = candidates[j]
             ans_j = answers[j]
             logp = np.empty(len(cand))
             ans_j = answers[j]
 
-            for ci, c in enumerate(cand):
+            for ci, c in enumerate(cand): # loop on answers
                 hit = ans_j == c
                 miss = ~hit
-                logp[ci] = log_correct[j, hit].sum() + log_wrong[j, miss].sum()
+                logp[ci] = log_correct[j, hit].sum() + log_wrong[j, miss].sum() 
             mmax = logp.max()
             w = np.exp(logp - mmax)
             Z = w.sum()
-            postj = w / Z
+            postj = w / Z #posterior for each 
             ll += mmax + np.log(Z)
             pred[j] = cand[postj.argmax()]
             # map posterior back onto each answering worker's actual choice
@@ -90,13 +88,12 @@ def glad(answers, n_choices, max_iter=50, m_steps=25, lr=0.01,
             cand_to_post = {int(c): postj[ci] for ci, c in enumerate(cand)}
             row = post_at_answer[j]
             row[:] = 0.0
-            post_at_answer[j] = np.array([
+            post_at_answer[j] = np.array([ # worker ans is probably correct
             cand_to_post[int(ans_j[i])]
             for i in range(n_w)
             ])
             
-
-        # ---------- M-step (gradient ascent on expected complete LL) ----------
+        # M-step 
         for _ms in range(m_steps):
             beta = np.exp(b)
             x = alpha[None, :] * beta[:, None]
